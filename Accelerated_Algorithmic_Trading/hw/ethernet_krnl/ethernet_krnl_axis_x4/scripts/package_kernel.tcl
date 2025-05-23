@@ -84,7 +84,7 @@ add_files -fileset constrs_1 -norecurse [glob $path_to_hdl/*.xdc]
 # create_ip -name xxv_ethernet -vendor xilinx.com -library ip -version 3.3 -module_name xxv_ethernet_x4_0
 # set_property -dict [list CONFIG.CORE {Ethernet MAC+PCS/PMA 32-bit} CONFIG.NUM_OF_CORES {$channels} CONFIG.INCLUDE_USER_FIFO {0} CONFIG.LINE_RATE {10} CONFIG.BASE_R_KR {BASE-R} CONFIG.INCLUDE_AXI4_INTERFACE {0} CONFIG.ENABLE_PIPELINE_REG {1} CONFIG.ADD_GT_CNTRL_STS_PORTS {1}] [get_ips xxv_ethernet_x4_0]
 
-create_ip -name xxv_ethernet -vendor xilinx.com -library ip -version 4.0 -module_name xxv_ethernet_x4_0
+create_ip -name xxv_ethernet -vendor xilinx.com -library ip -version 4.* -module_name xxv_ethernet_x4_0
 set_property -dict [list CONFIG.CORE {Ethernet MAC+PCS/PMA 32-bit} CONFIG.NUM_OF_CORES {4} CONFIG.INCLUDE_USER_FIFO {0} CONFIG.LINE_RATE {10} CONFIG.BASE_R_KR {BASE-R} CONFIG.INCLUDE_AXI4_INTERFACE {0} CONFIG.ENABLE_PIPELINE_REG {1} CONFIG.ADD_GT_CNTRL_STS_PORTS {1}] [get_ips xxv_ethernet_x4_0]
 
 if {[string compare -nocase $board "u200"] == 0} {
