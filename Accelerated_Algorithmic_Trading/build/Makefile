@@ -54,7 +54,7 @@ XILINX_PLATFORM=$(basename $(notdir $(DEVICE)))
 TARGET ?= hw
 
 # set default Slave Bridge mode, allows overide for DMA variant (DMA)
-DM_MODE ?= SB
+DM_MODE ?= DMA
 
 ifeq ($(TARGET),hw)
 PROJECT=aat
@@ -117,6 +117,12 @@ ifeq ($(DM_MODE), DMA)
 VPPLINKFLAGS := --config aat.u250.ini
 else ifeq ($(DM_MODE), SB)
 VPPLINKFLAGS := --config aat.u250.sb.ini
+else
+$(error Unsupported DM_MODE=$(DM_MODE) for XILINX_PLATFORM=$(XILINX_PLATFORM))
+endif
+else ifneq (,$(shell echo $(XILINX_PLATFORM) | awk '/_u55c_gen.*_xdma_/'))
+ifeq ($(DM_MODE), DMA)
+VPPLINKFLAGS := --config aat.u55c.ini
 else
 $(error Unsupported DM_MODE=$(DM_MODE) for XILINX_PLATFORM=$(XILINX_PLATFORM))
 endif

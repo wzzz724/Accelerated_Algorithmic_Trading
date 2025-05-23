@@ -70,6 +70,11 @@ set boardPart "xilinx.com:au50:part0:1.1"
 } elseif {[string compare -nocase $board "u280"] == 0} {
 set projPart "xcu280-fsvh2892-2L-e"
 set boardPart "xilinx.com:au280:part0:1.2"
+# U55C_START
+} elseif {[string compare -nocase $board "u55c"] == 0} {
+set projPart "xcu55c-fsvh2892-2L-e"
+set boardPart "xilinx.com:au55c:1.0"
+# U55C_END
 } else {
 	puts "Unknown Board"
 	exit
@@ -97,6 +102,10 @@ if {[string compare -nocase $board "u200"] == 0} {
 } elseif {[string compare -nocase $board "u50"] == 0} {
   set_property -dict [list CONFIG.GT_REF_CLK_FREQ {161.1328125}  CONFIG.GT_GROUP_SELECT {Quad_X0Y7} CONFIG.LANE1_GT_LOC {X0Y28} CONFIG.LANE2_GT_LOC {X0Y29} CONFIG.LANE3_GT_LOC {X0Y30} CONFIG.LANE4_GT_LOC {X0Y31}] [get_ips xxv_ethernet_x4_0]
 # U50_END
+# U55C_START
+} elseif {[string compare -nocase $board "u55c"] == 0} {
+  set_property -dict [list CONFIG.GT_REF_CLK_FREQ {161.1328125}  CONFIG.GT_GROUP_SELECT {Quad_X0Y7} CONFIG.LANE1_GT_LOC {X0Y28} CONFIG.LANE2_GT_LOC {X0Y29} CONFIG.LANE3_GT_LOC {X0Y30} CONFIG.LANE4_GT_LOC {X0Y31}] [get_ips xxv_ethernet_x4_0]
+# U55C_END
 } else {
     puts "Unknown board $board"
     exit
