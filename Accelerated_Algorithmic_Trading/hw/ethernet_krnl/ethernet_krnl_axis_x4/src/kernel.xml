@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root versionMajor="1" versionMinor="6">
+    <kernel name="ethernet_krnl_axis_x4" language="ip" vlnv="xilinx.com:kernel:ethernet_krnl_axis_x4:1.1" attributes="" preferredWorkGroupSizeMultiple="0" workGroupSize="1" interrupt="true">
+        <ports>
+            <port name="s_axi_control"  mode="slave"  range="0x1000"    dataWidth="32" portType="addressable" base="0x0"/>
+            <port name="rx0_axis"       mode="write_only"               dataWidth="64" portType="stream"/>
+            <port name="rx1_axis"       mode="write_only"               dataWidth="64" portType="stream"/>
+            <port name="rx2_axis"       mode="write_only"               dataWidth="64" portType="stream"/>
+            <port name="rx3_axis"       mode="write_only"               dataWidth="64" portType="stream"/>            
+            <port name="tx0_axis"       mode="read_only"                dataWidth="64" portType="stream"/>
+            <port name="tx1_axis"       mode="read_only"                dataWidth="64" portType="stream"/>
+            <port name="tx2_axis"       mode="read_only"                dataWidth="64" portType="stream"/>
+            <port name="tx3_axis"       mode="read_only"                dataWidth="64" portType="stream"/>            
+        </ports>
+        <args>
+            <arg name="scalar00" addressQualifier="0" id="0" port="s_axi_control" size="0x4" offset="0x010" type="uint" hostOffset="0x0" hostSize="0x4"/>
+            <arg name="scalar01" addressQualifier="0" id="1" port="s_axi_control" size="0x4" offset="0x018" type="uint" hostOffset="0x0" hostSize="0x4"/>
+            <arg name="scalar10" addressQualifier="0" id="2" port="s_axi_control" size="0x4" offset="0x020" type="uint" hostOffset="0x0" hostSize="0x4"/>
+            <arg name="scalar11" addressQualifier="0" id="3" port="s_axi_control" size="0x4" offset="0x028" type="uint" hostOffset="0x0" hostSize="0x4"/>
+            <arg name="rx0_axis" addressQualifier="4" id="4" port="rx0_axis"      size="0x4" offset="0x030"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="rx1_axis" addressQualifier="4" id="5" port="rx1_axis"      size="0x4" offset="0x038"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="rx2_axis" addressQualifier="4" id="6" port="rx2_axis"      size="0x4" offset="0x040"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="rx3_axis" addressQualifier="4" id="7" port="rx3_axis"      size="0x4" offset="0x048"             hostOffset="0x0" hostSize="0x4" type="stream"/>            
+            <arg name="tx0_axis" addressQualifier="4" id="8" port="tx0_axis"      size="0x4" offset="0x040"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="tx1_axis" addressQualifier="4" id="9" port="tx1_axis"      size="0x4" offset="0x048"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="tx2_axis" addressQualifier="4" id="10" port="tx2_axis"      size="0x4" offset="0x050"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="tx3_axis" addressQualifier="4" id="11" port="tx3_axis"      size="0x4" offset="0x058"             hostOffset="0x0" hostSize="0x4" type="stream"/>            
+        </args>
+    </kernel>
+</root>

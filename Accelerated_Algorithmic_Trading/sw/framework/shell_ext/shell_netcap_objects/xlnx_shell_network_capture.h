@@ -1,0 +1,36 @@
+/*
+ * Copyright 2021 Xilinx, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+#ifndef XLNX_SHELL_NETWORK_CAPTURE_H
+#define XLNX_SHELL_NETWORK_CAPTURE_H
+
+#include <cinttypes>
+
+#include "xlnx_shell.h"
+using namespace XLNX;
+
+
+
+extern CommandTableElement XLNX_NETWORK_CAPTURE_COMMAND_TABLE[];
+extern const uint32_t XLNX_NETWORK_CAPTURE_COMMAND_TABLE_LENGTH;
+
+
+char* NetworkCapture_ErrorCodeToString(uint32_t errorCode);
+
+
+
+#endif //XLNX_SHELL_NETWORK_CAPTURE_H

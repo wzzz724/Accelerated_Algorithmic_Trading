@@ -1,0 +1,1 @@
+set_false_path -to [get_pins -hier -filter { name =~ *genblk1[*].tx_traf_proc/tx_fifo_inst/sof_pulse_toggle_sync/DIN }]

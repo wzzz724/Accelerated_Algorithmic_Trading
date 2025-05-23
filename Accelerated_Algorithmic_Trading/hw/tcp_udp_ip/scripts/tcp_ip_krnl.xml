@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root versionMajor="1" versionMinor="0">
+    <kernel name="tcp_ip_krnl" language="ip" vlnv="xilinx.com:kernel:tcp_ip:1.0" attributes="" preferredWorkGroupSizeMultiple="0" workGroupSize="1" interrupt="false">
+        <ports>
+            <port name="s_axi_control"       mode="slave"  range="0x10000"   dataWidth="32"  portType="addressable" base="0x0"/>
+            <port name="m_axis_line"         mode="write_only"               dataWidth="64"  portType="stream"/>
+            <port name="s_axis_line"         mode="read_only"                dataWidth="64" portType="stream"/>
+            <port name="m_axis_listen_port_status" mode="write_only" dataWidth="8" portType="stream"/>
+            <port name="m_axis_notifications" mode="write_only" dataWidth="128" portType="stream"/>
+            <port name="m_axis_open_status" mode="write_only" dataWidth="32" portType="stream"/>
+            <port name="m_axis_rx_data" mode="write_only" dataWidth="64" portType="stream"/>
+            <port name="m_axis_rx_metadata" mode="write_only" dataWidth="16" portType="stream"/>
+            <port name="m_axis_tx_status" mode="write_only" dataWidth="64" portType="stream"/>
+            <port name="s_axis_listen_port" mode="read_only" dataWidth="16" portType="stream"/>
+            <port name="s_axis_close_connection" mode="read_only" dataWidth="16" portType="stream"/>
+            <port name="s_axis_open_connection" mode="read_only" dataWidth="64" portType="stream"/>
+            <port name="s_axis_read_package" mode="read_only" dataWidth="32" portType="stream"/>
+            <port name="s_axis_tx_data" mode="read_only" dataWidth="64" portType="stream"/>
+            <port name="s_axis_tx_metadata" mode="read_only" dataWidth="64" portType="stream"/>
+        </ports>
+        <args>
+            <arg name="scalar00"                  addressQualifier="0" id="0"  port="s_axi_control"              size="0x4" offset="0x010" type="uint" hostOffset="0x0" hostSize="0x4"/> 
+            <arg name="m_axis_line"               addressQualifier="4" id="1"  port="m_axis_line"                size="0x4" offset="0x020"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_line"               addressQualifier="4" id="2"  port="s_axis_line"                size="0x4" offset="0x038"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="m_axis_listen_port_status" addressQualifier="4" id="3"  port="m_axis_listen_port_status"  size="0x4" offset="0x050"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="m_axis_notifications"      addressQualifier="4" id="4"  port="m_axis_notifications"       size="0x4" offset="0x058"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="m_axis_open_status"        addressQualifier="4" id="5"  port="m_axis_open_status"         size="0x4" offset="0x060"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="m_axis_rx_data"            addressQualifier="4" id="6" port="m_axis_rx_data"              size="0x4" offset="0x068"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="m_axis_rx_metadata"        addressQualifier="4" id="7" port="m_axis_rx_metadata"          size="0x4" offset="0x070"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="m_axis_tx_status"          addressQualifier="4" id="8" port="m_axis_tx_status"            size="0x4" offset="0x078"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_listen_port"        addressQualifier="4" id="9" port="s_axis_listen_port"          size="0x4" offset="0x080"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_close_connection"   addressQualifier="4" id="10" port="s_axis_close_connection"    size="0x4" offset="0x088"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_open_connection"    addressQualifier="4" id="11" port="s_axis_open_connection"     size="0x4" offset="0x090"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_read_package"       addressQualifier="4" id="12" port="s_axis_read_package"        size="0x4" offset="0x098"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_tx_data"            addressQualifier="4" id="13" port="s_axis_tx_data"             size="0x4" offset="0x0A0"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+            <arg name="s_axis_tx_metadata"        addressQualifier="4" id="14" port="s_axis_tx_metadata"         size="0x4" offset="0x0AA"             hostOffset="0x0" hostSize="0x4" type="stream"/>
+        </args>
+    </kernel>
+</root>
