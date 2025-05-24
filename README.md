@@ -16,6 +16,7 @@ recommended to download from the URL provided.
 DEVICE=/opt/xilinx/platforms/xilinx_u55c_gen3x16_xdma_3_202210_1/xilinx_u55c_gen3x16_xdma_3_202210_1.xpfm
 XILINX_PLATFORM=xilinx_u55c_gen3x16_xdma_3_202210_1
 XPART=xcu55c-fsvh2892-2L-e
+PLATFORM_REPO_PATHS='/opt/xilinx/platforms'
 ```
 
 2. Set platform information for IP kernel
@@ -71,7 +72,7 @@ if {[string compare -nocase $board "u200"] == 0} {
 }
 ...
 ```
-1. Customize signal connection. if your card is not U50, U250 or U55C, creating a new .ini file
+3. Customize signal connection. if your card is not U50, U250 or U55C, creating a new .ini file
 ```makefile
 # Accelerated_Algorithmic_Trading\build\Makefile
 # line 95
