@@ -116,3 +116,11 @@ $(error Unsupported XILINX_PLATFORM=$(XILINX_PLATFORM))
 endif
 endif
 ```
+
+注意：
+
+应该先在网卡的host端开启监听`nc -l 192.168.20.100 12345 -v`
+
+再在板卡上运行AAT
+
+否则无法建立监听连接
