@@ -126,3 +126,16 @@ endif
 2. 各模块正常运行，orderbook中已经有了数据，但监听不到输出
 
     解决方法：应该先在网卡的host端开启监听`nc -l 192.168.20.100 12345 -v`，再在板卡上运行AAT，否则无法建立监听连接
+
+3. 因为证书问题无法完成Bitstream Generation
+
+    解决方法：
+
+    1. http://www.xilinx.com/getlicense 获取10G与10G/25G Eternet的Evaluation版证书
+    2. https://github.com/fpgasystems/Vitis_with_100Gbps_TCP-IP 下载这个项目
+    3. 在Vitis_with_100Gbps_TCP-IP/fpga-network-stack/scripts/network_stack.tcl文件开头加一行代码
+    ```
+    set_param xilinx.com:47_license_vitis_kernel_license "yourpath/Xilinx.lic"
+    ```
+    4. 编译上面的项目
+    5. 重新下载没有build过的AAT项目，进行编译，此时应该不会出现证书问题
