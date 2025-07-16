@@ -73,6 +73,7 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
     static ap_uint<32> countStrategyNone = 0;
     static ap_uint<32> countStrategyPeg = 0;
     static ap_uint<32> countStrategyLimit = 0;
+    static ap_uint<32> countStrategyCustom = 0;
     static ap_uint<32> countStrategyUnknown = 0;
 
     if (!responseStream.empty())
@@ -111,14 +112,39 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
         // 拆解 bid/ask 量（10档，每档16bit）
         for (int i = 0; i < LEVELS; i++) {
 #pragma HLS UNROLL
-            entry.bidSize[i] = response.bidQuantity.range((i + 1) * 32 - 1, i * 32);
-            entry.askSize[i] = response.askQuantity.range((i + 1) * 32 - 1, i * 32);
+            ap_uint<32> bidQty = response.bidQuantity.range((i + 1) * 32 - 1, i * 32);
+            ap_uint<32> askQty = response.askQuantity.range((i + 1) * 32 - 1, i * 32);
+            entry.bidDelta[i] = (ap_int<32>)(bidQty) - (ap_int<32>)(entry.bidSize[i]);
+            entry.askDelta[i] = (ap_int<32>)(askQty) - (ap_int<32>)(entry.askSize[i]);
+
+            // 如果发生变化，更新时间戳
+            if (bidDelta != 0) {
+                entry.lastUpdateTimestampBid[i] = response.timestamp;
+            }
+            if (askDelta != 0) {
+                entry.lastUpdateTimestampAsk[i] = response.timestamp;
+            }
+            
+            entry.bidSize[i] = bidQty;
+            entry.askSize[i] = askQty;
+
+            entry.bidPrice[i] = response.bidPrice.range((i + 1) * 32 - 1, i * 32);
+            entry.askPrice[i] = response.askPrice.range((i + 1) * 32 - 1, i * 32);
         }
 
-        // 更新价格缓存
-        entry.bidPrice = rawBid;
-        entry.askPrice = rawAsk;
-        entry.tradePrice = (entry.bidPrice + entry.askPrice) / 2;
+        entry.tradePrice = (entry.bidPrice[0] + entry.askPrice[0]) / 2;
+
+        // 更新历史数据
+        entry.bidPriceHistory.insert(entry.bidPrice[0], response.timestamp);
+        entry.askPriceHistory.insert(entry.askPrice[0], response.timestamp);
+        entry.tradePriceHistory.insert(entry.tradePrice, response.timestamp);
+        for (int i = 0; i < LEVELS; i++) {
+#pragma HLS UNROLL
+            entry.bidSizeHistory[i].insert(entry.bidSize[i], response.timestamp);
+            entry.askSizeHistory[i].insert(entry.askSize[i], response.timestamp);
+        }
+        entry.positionSizeHistory.insert(entry.positionSize, response.timestamp);
+        entry.pnlEstimateHistory.insert(entry.pnlEstimate, response.timestamp);
 
         // 设置系统状态
         entry.systemState = 1; // STATE_RUNNING
@@ -147,6 +173,10 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
                                                     response,
                                                     operation);
                 break;
+
+            case (STRATEGY_CUSTOM):
+                ++countStrategyCustom;
+                orderExecute = pricingStrategyCustom(operation);
 
             default:
                 ++countStrategyUnknown;

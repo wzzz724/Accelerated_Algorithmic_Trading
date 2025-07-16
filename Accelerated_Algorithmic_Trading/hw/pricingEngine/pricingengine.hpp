@@ -19,7 +19,6 @@
 
 #include "hls_stream.h"
 #include "ap_int.h"
-#include "ap_fixed.h"
 #include "aat_defines.hpp"
 #include "aat_interfaces.hpp"
 
@@ -28,24 +27,6 @@
 
 // 最多支持 5 档报价
 #define LEVELS 5
-
-static float TRADE_PRICE = 0;
-static float BEST_BID = 0;
-static float BEST_ASK = 0;
-static float BID_SIZE[LEVELS] = {0};
-static float ASK_SIZE[LEVELS] = {0};
-
-enum TradeSide { TRADE_UNKNOWN, TRADE_BUY, TRADE_SELL };
-static TradeSide LAST_TRADE_SIDE = TRADE_UNKNOWN;
-
-static int TICK_INDEX = 0;
-static int CLOCK_US = 0;
-static int LAST_ORDER_ID = 0;
-static int POSITION_SIZE = 0;
-static float PNL_ESTIMATE = 0;
-
-enum SystemState { STATE_INIT, STATE_RUNNING, STATE_ERROR };
-static SystemState SYSTEM_STATE = STATE_RUNNING;
 
 typedef struct pricingEngineRegControl_t
 {
@@ -104,22 +85,166 @@ typedef struct pricingEngineRegThresholds_t
 
 typedef struct pricingEngineCacheEntry_t
 {
-    ap_uint<32> bidPrice;
-    ap_uint<32> askPrice;
-    ap_uint<1>  valid;
+    ap_uint<32> bidPrice[LEVELS];
+    ap_uint<32> askPrice[LEVELS];
 
     ap_uint<32> tradePrice;
     ap_uint<32> bidSize[LEVELS];
     ap_uint<32> askSize[LEVELS];
 
-    ap_uint<1> lastTradeSide;      // 0: SELL, 1: BUY
+    ap_int<32>  bidSizeDelta[LEVELS];        // 增量（可正负）
+    ap_int<32>  askSizeDelta[LEVELS];
+
+    ap_uint<32> positionSize;
+    ap_uint<32> pnlEstimate;
+
+    TimeSeriesBuffer bidPriceHistory;  // 买价历史
+    TimeSeriesBuffer askPriceHistory;  // 卖价历史
+    TimeSeriesBuffer tradePriceHistory; // 成交价历史
+    TimeSeriesBuffer bidSizeHistory[LEVELS];   // 买量历史
+    TimeSeriesBuffer askSizeHistory[LEVELS];   // 卖量历史
+    TimeSeriesBuffer positionSizeHistory; // 仓位历史
+    TimeSeriesBuffer pnlEstimateHistory; // PnL 估算历史
+
+    ap_uint<1>  valid;
+    ap_uint<56> lastUpdateTimestampBid[LEVELS]; // 买档上次更新时间
+    ap_uint<56> lastUpdateTimestampAsk[LEVELS]; // 卖档上次更新时间
+    ap_uint<1>  lastTradeSide;      // 0: SELL, 1: BUY
     ap_uint<32> tickIndex;
     ap_uint<32> clockUS;
     ap_uint<32> lastOrderId;
-    int         positionSize;
-    ap_uint<32> pnlEstimate;
     ap_uint<8>  systemState;
 } pricingEngineCacheEntry_t;
+
+// For primitives
+typedef struct {
+    ap_uint<32> bidPrice;
+    ap_uint<32> bidSize;
+    ap_uint<32> askPrice;
+    ap_uint<32> askSize;
+} BookLevel;
+
+struct BookSnapshot {
+    BookLevel levels[LEVELS];
+};
+
+struct TimeSeriesEntry {
+    ap_uint<32> value;
+    ap_uint<56> timestamp;
+};
+
+struct TimeSeriesBuffer {
+    TimeSeriesEntry buffer[MAX_WINDOW];
+    ap_uint<8> index = 0;
+    ap_uint<8> count = 0;
+
+    // 插入新数据（值 + 时间戳）
+    void insert(ap_uint<32> val, ap_uint<56> ts) {
+#pragma HLS INLINE
+        buffer[index].value = val;
+        buffer[index].timestamp = ts;
+        index = (index + 1) % MAX_WINDOW;
+        if (count < MAX_WINDOW) ++count;
+    }
+
+    // 滑动平均
+    ap_uint<32> movingAvg(ap_uint<8> window) const {
+#pragma HLS INLINE
+        ap_uint<64> sum = 0;
+        ap_uint<8> actual = (window > count) ? count : window;
+        for (int i = 0; i < MAX_WINDOW; ++i) {
+#pragma HLS UNROLL
+            if (i < actual) {
+                int idx = (index + MAX_WINDOW - 1 - i) % MAX_WINDOW;
+                sum += buffer[idx].value;
+            }
+        }
+        return (actual > 0) ? sum / actual : 0;
+    }
+
+    // 滑动求和
+    ap_uint<32> movingSum(ap_uint<8> window) const {
+#pragma HLS INLINE
+        ap_uint<64> sum = 0;
+        ap_uint<8> actual = (window > count) ? count : window;
+        for (int i = 0; i < MAX_WINDOW; ++i) {
+#pragma HLS UNROLL
+            if (i < actual) {
+                int idx = (index + MAX_WINDOW - 1 - i) % MAX_WINDOW;
+                sum += buffer[idx].value;
+            }
+        }
+        return sum;
+    }
+
+    // 最大值
+    ap_uint<32> movingMax(ap_uint<8> window) const {
+#pragma HLS INLINE
+        ap_uint<32> maxVal = 0;
+        ap_uint<8> actual = (window > count) ? count : window;
+        for (int i = 0; i < MAX_WINDOW; ++i) {
+#pragma HLS UNROLL
+            if (i < actual) {
+                int idx = (index + MAX_WINDOW - 1 - i) % MAX_WINDOW;
+                if (buffer[idx].value > maxVal)
+                    maxVal = buffer[idx].value;
+            }
+        }
+        return maxVal;
+    }
+
+    // 最小值
+    ap_uint<32> movingMin(ap_uint<8> window) const {
+#pragma HLS INLINE
+        ap_uint<32> minVal = ~ap_uint<32>(0); // 全1，即最大uint32
+        ap_uint<8> actual = (window > count) ? count : window;
+        for (int i = 0; i < MAX_WINDOW; ++i) {
+#pragma HLS UNROLL
+            if (i < actual) {
+                int idx = (index + MAX_WINDOW - 1 - i) % MAX_WINDOW;
+                if (buffer[idx].value < minVal)
+                    minVal = buffer[idx].value;
+            }
+        }
+        return minVal;
+    }
+
+    // 指数加权平均（α ∈ [0,255]）
+    ap_uint<32> expAvg(ap_uint<8> alpha, ap_uint<8> window) const {
+#pragma HLS INLINE
+        if (count == 0) return 0;
+
+        ap_uint<8> actual = (window > count) ? count : window;
+
+        ap_uint<32> ema = buffer[(index + MAX_WINDOW - 1) % MAX_WINDOW].value;
+
+        for (int i = 1; i < MAX_WINDOW; ++i) {
+#pragma HLS UNROLL
+            if (i < actual) {
+                int idx = (index + MAX_WINDOW - 1 - i) % MAX_WINDOW;
+                ema = ((ap_uint<64>)alpha * buffer[idx].value +
+                    (ap_uint<64>)(255 - alpha) * ema) >> 8;
+            }
+        }
+
+        return ema;
+    }
+
+    // 时间导数（Δ值 / Δ时间）
+    ap_uint<32> derivative() const {
+#pragma HLS INLINE
+        if (count < 2) return 0;
+
+        int idx1 = (index + MAX_WINDOW - 1) % MAX_WINDOW;
+        int idx0 = (index + MAX_WINDOW - 2) % MAX_WINDOW;
+
+        ap_uint<32> dv = buffer[idx1].value - buffer[idx0].value;
+        ap_uint<56> dt = buffer[idx1].timestamp - buffer[idx0].timestamp;
+
+        return (dt == 0) ? 0 : dv / dt;
+    }
+};
+
 
 /**
  * PricingEngine Core
@@ -152,6 +277,9 @@ public:
                               orderBookResponse_t &response,
                               orderEntryOperation_t &operation);
 
+    bool pricingStrategyCustom(orderBookResponse_t &response,
+                               orderEntryOperation_t &operation);
+
     void operationPush(ap_uint<32> &regCaptureControl,
                        ap_uint<32> &regTxOperation,
                        ap_uint<1024> &regCaptureBuffer,
@@ -165,6 +293,38 @@ private:
 
     //pricingEngineRegThresholds_t thresholds[NUM_SYMBOL];
     pricingEngineCacheEntry_t cache[NUM_SYMBOL];
+
+    // Primitives
+    // 获取订单簿快照：最多返回 depth 档
+    BookSnapshot getBookSnapshot(ap_uint<8> symbolIndex,
+                                 ap_uint<8> depth);
+
+    ap_int<32> getOrderDelta(ap_uint<8> symbolIndex,
+                             ap_uint<3> level,
+                             bool isBidSide);
+
+    ap_uint<56> getTimeSinceLastUpdate(ap_uint<8> symbolIndex,
+                                       ap_uint<3> level,
+                                       bool isBidSide,
+                                       ap_uint<56> nowTimestamp);
+
+    // 滑动平均
+    ap_uint<32> getMovingAvg(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+
+    // 指数加权平均
+    ap_uint<32> getExpAvg(ap_uint<8> symbolIndex, const char* field, ap_uint<8> alpha = 32, ap_uint<8> window = 8, int level = 0);
+
+    // 最大值
+    ap_uint<32> getMovingMax(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+
+    // 最小值
+    ap_uint<32> getMovingMin(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+
+    // 求和
+    ap_uint<32> getMovingSum(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+
+    // 时间导数
+    ap_uint<32> getDerivative(ap_uint<8> symbolIndex, const char* field, int level = 0);
 
 };
 
