@@ -19,11 +19,33 @@
 
 #include "hls_stream.h"
 #include "ap_int.h"
+#include "ap_fixed.h"
 #include "aat_defines.hpp"
 #include "aat_interfaces.hpp"
 
 #define PE_GLOBAL_STRATEGY (1<<31)
 #define PE_CAPTURE_FREEZE  (1<<31)
+
+// 最多支持 5 档报价
+#define LEVELS 5
+
+static float TRADE_PRICE = 0;
+static float BEST_BID = 0;
+static float BEST_ASK = 0;
+static float BID_SIZE[LEVELS] = {0};
+static float ASK_SIZE[LEVELS] = {0};
+
+enum TradeSide { TRADE_UNKNOWN, TRADE_BUY, TRADE_SELL };
+static TradeSide LAST_TRADE_SIDE = TRADE_UNKNOWN;
+
+static int TICK_INDEX = 0;
+static int CLOCK_US = 0;
+static int LAST_ORDER_ID = 0;
+static int POSITION_SIZE = 0;
+static float PNL_ESTIMATE = 0;
+
+enum SystemState { STATE_INIT, STATE_RUNNING, STATE_ERROR };
+static SystemState SYSTEM_STATE = STATE_RUNNING;
 
 typedef struct pricingEngineRegControl_t
 {
@@ -84,7 +106,19 @@ typedef struct pricingEngineCacheEntry_t
 {
     ap_uint<32> bidPrice;
     ap_uint<32> askPrice;
-    ap_uint<32> valid;
+    ap_uint<1>  valid;
+
+    ap_uint<32> tradePrice;
+    ap_uint<32> bidSize[LEVELS];
+    ap_uint<32> askSize[LEVELS];
+
+    ap_uint<1> lastTradeSide;      // 0: SELL, 1: BUY
+    ap_uint<32> tickIndex;
+    ap_uint<32> clockUS;
+    ap_uint<32> lastOrderId;
+    int         positionSize;
+    ap_uint<32> pnlEstimate;
+    ap_uint<8>  systemState;
 } pricingEngineCacheEntry_t;
 
 /**

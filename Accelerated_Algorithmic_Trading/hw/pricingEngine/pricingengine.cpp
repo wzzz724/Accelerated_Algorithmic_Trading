@@ -61,79 +61,119 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
     mmInterface intf;
     orderBookResponse_t response;
     orderEntryOperation_t operation;
-    ap_uint<8> symbolIndex=0;
-    ap_uint<8> strategySelect=0;
-    ap_uint<8> thresholdEnable=0;
-    ap_uint<8> thresholdPosition=0;
-    bool orderExecute=false;
 
-    static ap_uint<32> orderId=0;
-    static ap_uint<32> countProcessResponse=0;
-    static ap_uint<32> countStrategyNone=0;
-    static ap_uint<32> countStrategyPeg=0;
-    static ap_uint<32> countStrategyLimit=0;
-    static ap_uint<32> countStrategyUnknown=0;
+    ap_uint<8> symbolIndex = 0;
+    ap_uint<8> strategySelect = 0;
+    ap_uint<8> thresholdEnable = 0;
+    ap_uint<8> thresholdPosition = 0;
+    bool orderExecute = false;
 
-    if(!responseStream.empty())
+    static ap_uint<32> orderId = 0;
+    static ap_uint<32> countProcessResponse = 0;
+    static ap_uint<32> countStrategyNone = 0;
+    static ap_uint<32> countStrategyPeg = 0;
+    static ap_uint<32> countStrategyLimit = 0;
+    static ap_uint<32> countStrategyUnknown = 0;
+
+    if (!responseStream.empty())
     {
         response = responseStream.read();
         ++countProcessResponse;
 
         symbolIndex = response.symbolIndex;
-        thresholdEnable = regStrategies[symbolIndex].enable.range(7,0);
+        pricingEngineCacheEntry_t &entry = cache[symbolIndex];
 
-        // global strategy select override (across all symbols) for debug
-        if(PE_GLOBAL_STRATEGY & regStrategyControl)
-        {
-            strategySelect = regStrategyControl.range(7,0);
-        }
+        thresholdEnable = regStrategies[symbolIndex].enable.range(7, 0);
+
+        // 选策略
+        if (PE_GLOBAL_STRATEGY & regStrategyControl)
+            strategySelect = regStrategyControl.range(7, 0);
         else
-        {
-            strategySelect = regStrategies[symbolIndex].select.range(7,0);
+            strategySelect = regStrategies[symbolIndex].select.range(7, 0);
+
+        // ==== 状态缓存更新 ====
+
+        // 时间状态
+        entry.tickIndex += 1;
+        entry.clockUS = response.timestamp.to_uint();
+        entry.valid = 1;
+
+        // 价格状态
+        ap_uint<32> rawBid = response.bidPrice.range(31, 0);
+        ap_uint<32> rawAsk = response.askPrice.range(31, 0);
+
+        // 成交方向推断
+        if (entry.bidPrice != rawBid)
+            entry.lastTradeSide = 1; // BUY
+        else if (entry.askPrice != rawAsk)
+            entry.lastTradeSide = 0; // SELL
+
+        // 拆解 bid/ask 量（10档，每档16bit）
+        for (int i = 0; i < LEVELS; i++) {
+#pragma HLS UNROLL
+            entry.bidSize[i] = response.bidQuantity.range((i + 1) * 32 - 1, i * 32);
+            entry.askSize[i] = response.askQuantity.range((i + 1) * 32 - 1, i * 32);
         }
 
-        switch(strategySelect)
+        // 更新价格缓存
+        entry.bidPrice = rawBid;
+        entry.askPrice = rawAsk;
+        entry.tradePrice = (entry.bidPrice + entry.askPrice) / 2;
+
+        // 设置系统状态
+        entry.systemState = 1; // STATE_RUNNING
+
+        // ==== 策略执行 ====
+
+        switch (strategySelect)
         {
-            case(STRATEGY_NONE):
-            {
-                // reserved for unprogrammed strategy, i.e. no action
+            case (STRATEGY_NONE):
                 ++countStrategyNone;
                 orderExecute = false;
                 break;
-            }
-            case(STRATEGY_PEG):
-            {
+
+            case (STRATEGY_PEG):
                 ++countStrategyPeg;
                 orderExecute = pricingStrategyPeg(thresholdEnable,
                                                   thresholdPosition,
                                                   response,
                                                   operation);
                 break;
-            }
-            case(STRATEGY_LIMIT):
-            {
+
+            case (STRATEGY_LIMIT):
                 ++countStrategyLimit;
                 orderExecute = pricingStrategyLimit(thresholdEnable,
                                                     thresholdPosition,
                                                     response,
                                                     operation);
                 break;
-            }
+
             default:
-            {
                 ++countStrategyUnknown;
                 orderExecute = false;
                 break;
-            }
         }
 
-        if(orderExecute)
+        // ==== 下单逻辑 ====
+
+        if (orderExecute)
         {
             operation.orderId = ++orderId;
+            entry.lastOrderId = orderId;
+
+            if (operation.direction == ORDER_BID)
+                entry.positionSize += operation.quantity;
+            else
+                entry.positionSize -= operation.quantity;
+
+            // 粗略 PnL = 仓位 × (成交价格 - 当前买价)
+            entry.pnlEstimate = entry.positionSize * (entry.tradePrice - entry.bidPrice);
+
             operationStream.write(operation);
         }
     }
 
+    // 写回寄存器
     regProcessResponse = countProcessResponse;
     regStrategyNone = countStrategyNone;
     regStrategyPeg = countStrategyPeg;
@@ -142,6 +182,7 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
 
     return;
 }
+
 
 bool PricingEngine::pricingStrategyPeg(ap_uint<8> thresholdEnable,
                                        ap_uint<32> thresholdPosition,
