@@ -4,5 +4,25 @@
 bool PricingEngine::pricingStrategyCustom(orderBookResponse_t &response,
                                           orderEntryOperation_t &operation)
 {
-    return false; // Custom strategy not implemented
+    ap_uint<8> symbolIndex = response.symbolIndex;
+    BookSnapshot bookSnapshot = getBookSnapshot(symbolIndex, 5);
+    ap_int<32> orderDelta = getOrderDelta(symbolIndex, 0, true); // 获取第一级买单的变化量
+    ap_uint<56> timeSinceLastUpdate = getTimeSinceLastUpdate(symbolIndex, 0, true, response.timestamp);
+    ap_uint<32> movingAvgBidPrice = getMovingAvg(symbolIndex, BID_PRICE);
+    ap_uint<32> expAvgBidPrice = getExpAvg(symbolIndex, BID_PRICE);
+    ap_uint<32> movingMaxBidPrice = getMovingMax(symbolIndex, BID_PRICE);
+    ap_uint<32> movingMinBidPrice = getMovingMin(symbolIndex, BID_PRICE);
+    ap_uint<32> movingSumBidSize = getMovingSum(symbolIndex, BID_SIZE);
+    ap_uint<32> derivativeBidPrice = getDerivative(symbolIndex, BID_PRICE);
+    ap_int<32> crossoverSignal = getCrossover(cache[symbolIndex].bidPriceHistory, cache[symbolIndex].tradePriceHistory);
+    ap_fixed<16, 2> imbalance = getImbalance(bookSnapshot.levels[0].bidSize, bookSnapshot.levels[0].askSize);
+    bool priceJump = priceJump(symbolIndex, 100);
+    ap_fixed<32, 8> stdDevThreshold = 2.0; // 假设的标准差阈值
+    bool spikeDetected = SPIKE(cache[symbolIndex].bidPriceHistory, stdDevThreshold);
+    ap_uint<4> levels[] = {0, 1, 2, 3, 4}; // 假设的档位
+    ap_int<32> bookPressure = BOOK_PRESSURE(symbolIndex, levels, 5);
+    ap_uint<8> state = STATEFUL_IF(symbolIndex, priceJump || spikeDetected, STATE_ACTIVE);
+    ap_uint<32> delayedPrice = LATENCY_GATE(cache[symbolIndex].bidPriceHistory, 2);
+    sendOrder(symbolIndex, 1000, response.bidPrice.range(31, 0) + 50, ORDER_BID, operation);
+    return true; // Custom strategy not implemented
 }

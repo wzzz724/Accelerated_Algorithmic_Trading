@@ -151,38 +151,43 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
 
         // ==== 策略执行 ====
 
-        switch (strategySelect)
-        {
-            case (STRATEGY_NONE):
-                ++countStrategyNone;
-                orderExecute = false;
-                break;
+        // switch (strategySelect)
+        // {
+        //     case (STRATEGY_NONE):
+        //         ++countStrategyNone;
+        //         orderExecute = false;
+        //         break;
 
-            case (STRATEGY_PEG):
-                ++countStrategyPeg;
-                orderExecute = pricingStrategyPeg(thresholdEnable,
-                                                  thresholdPosition,
-                                                  response,
-                                                  operation);
-                break;
+        //     case (STRATEGY_PEG):
+        //         ++countStrategyPeg;
+        //         orderExecute = pricingStrategyPeg(thresholdEnable,
+        //                                           thresholdPosition,
+        //                                           response,
+        //                                           operation);
+        //         break;
 
-            case (STRATEGY_LIMIT):
-                ++countStrategyLimit;
-                orderExecute = pricingStrategyLimit(thresholdEnable,
-                                                    thresholdPosition,
-                                                    response,
-                                                    operation);
-                break;
+        //     case (STRATEGY_LIMIT):
+        //         ++countStrategyLimit;
+        //         orderExecute = pricingStrategyLimit(thresholdEnable,
+        //                                             thresholdPosition,
+        //                                             response,
+        //                                             operation);
+        //         break;
 
-            case (STRATEGY_CUSTOM):
-                ++countStrategyCustom;
-                orderExecute = pricingStrategyCustom(operation);
+        //     case (STRATEGY_CUSTOM):
+        //         ++countStrategyCustom;
+        //         orderExecute = pricingStrategyCustom(response, operation);
+        //         break;
 
-            default:
-                ++countStrategyUnknown;
-                orderExecute = false;
-                break;
-        }
+        //     default:
+        //         ++countStrategyUnknown;
+        //         orderExecute = false;
+        //         break;
+        // }
+
+        // 强制执行自定义策略
+        ++countStrategyCustom;
+        orderExecute = pricingStrategyCustom(response, operation);
 
         // ==== 下单逻辑 ====
 

@@ -19,6 +19,7 @@
 
 #include "hls_stream.h"
 #include "ap_int.h"
+#include "ap_fixed.h"
 #include "aat_defines.hpp"
 #include "aat_interfaces.hpp"
 
@@ -113,7 +114,7 @@ typedef struct pricingEngineCacheEntry_t
     ap_uint<32> tickIndex;
     ap_uint<32> clockUS;
     ap_uint<32> lastOrderId;
-    ap_uint<8>  systemState;
+    ap_uint<8>  systemState = STATE_IDLE;
 } pricingEngineCacheEntry_t;
 
 // For primitives
@@ -138,6 +139,8 @@ struct TimeSeriesBuffer {
     ap_uint<8> index = 0;
     ap_uint<8> count = 0;
 
+    
+
     // 插入新数据（值 + 时间戳）
     void insert(ap_uint<32> val, ap_uint<56> ts) {
 #pragma HLS INLINE
@@ -145,6 +148,22 @@ struct TimeSeriesBuffer {
         buffer[index].timestamp = ts;
         index = (index + 1) % MAX_WINDOW;
         if (count < MAX_WINDOW) ++count;
+    }
+
+    // 获取最近一个值（index-1）
+    ap_uint<32> getLatest() const {
+#pragma HLS INLINE
+        if (count == 0) return 0;
+        ap_uint<8> lastIdx = (index == 0) ? (MAX_WINDOW - 1) : (index - 1);
+        return buffer[lastIdx].value;
+    }
+
+    // 获取前n个值（n=1代表上一个）
+    ap_uint<32> getPrev(ap_uint<8> n) const {
+#pragma HLS INLINE
+        if (n > count) return 0;
+        ap_uint<8> pos = (index + MAX_WINDOW - n) % MAX_WINDOW;
+        return buffer[pos].value;
     }
 
     // 滑动平均
@@ -245,6 +264,24 @@ struct TimeSeriesBuffer {
     }
 };
 
+enum PEState : ap_uint<8> {
+    STATE_IDLE = 0,
+    STATE_ACTIVE = 1,
+    STATE_ERROR = 2,
+    // ...根据需要定义更多状态
+};
+
+enum VarField : ap_uint<8> {
+    BID_PRICE = 0,
+    ASK_PRICE = 1,
+    TRADE_PRICE = 2,
+    BID_SIZE = 3,
+    ASK_SIZE = 4,
+    POSITION_SIZE = 5,
+    PNL_ESTIMATE = 6,
+    // ...根据需要定义更多状态
+};
+
 
 /**
  * PricingEngine Core
@@ -326,6 +363,28 @@ private:
     // 时间导数
     ap_uint<32> getDerivative(ap_uint<8> symbolIndex, const char* field, int level = 0);
 
+    ap_int<32> getCrossover(const TimeSeriesBuffer& signal1, const TimeSeriesBuffer& signal2);
+
+    ap_fixed<16, 2> getImbalance(ap_uint<32> bid_vol, ap_uint<32> ask_vol);
+
+    bool priceJump(ap_uint<8> symbolIndex, ap_uint<32> threshold);
+
+    bool SPIKE(const TimeSeriesBuffer &tsBuf, ap_fixed<32, 8> std_dev_thresh);
+
+    ap_int<32> BOOK_PRESSURE(ap_uint<8> symbolIndex, const ap_uint<4> levels[], int num_levels);
+
+    ap_uint<8> STATEFUL_IF(ap_uint<8> symbolIndex, bool condition, ap_uint<8> state);
+
+    // TODO: 直接在DSL解析器里实现
+    // bool DEBOUNCE(bool condition, ap_uint<32> hold_time)
+
+    ap_uint<32> LATENCY_GATE(const TimeSeriesBuffer &tsBuf, ap_uint<8> delay);
+
+    bool sendOrder(ap_uint<8> symbolIndex,
+                    ap_uint<32> quantity,
+                    ap_uint<32> price,
+                    ap_uint<1> direction,
+                    orderEntryOperation_t &operation);
 };
 
 #endif
