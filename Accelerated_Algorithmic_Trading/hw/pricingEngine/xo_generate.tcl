@@ -22,6 +22,8 @@ open_project -reset prj_pe
 add_files ${COMMON_DIR}/aat_interfaces.cpp -cflags ${CFLAGS}
 add_files ${KERNEL_DIR}/pricingengine.cpp -cflags ${CFLAGS}
 add_files ${KERNEL_DIR}/pricingengine_top.cpp  -cflags ${CFLAGS}
+add_files ${KERNEL_DIR}/pricingstrategy_custom.cpp  -cflags ${CFLAGS}
+add_files ${KERNEL_DIR}/primitives.cpp  -cflags ${CFLAGS}
 set_top pricingEngineTop
 open_solution -reset -flow_target vitis "pricingEngineTop"
 set_part $::env(XPART)

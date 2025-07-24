@@ -16,7 +16,7 @@ bool PricingEngine::pricingStrategyCustom(orderBookResponse_t &response,
     ap_uint<32> derivativeBidPrice = getDerivative(symbolIndex, BID_PRICE);
     ap_int<32> crossoverSignal = getCrossover(cache[symbolIndex].bidPriceHistory, cache[symbolIndex].tradePriceHistory);
     ap_fixed<16, 2> imbalance = getImbalance(bookSnapshot.levels[0].bidSize, bookSnapshot.levels[0].askSize);
-    bool priceJump = priceJump(symbolIndex, 100);
+    bool priceJump = PRICE_JUMP(symbolIndex, 100);
     ap_fixed<32, 8> stdDevThreshold = 2.0; // 假设的标准差阈值
     bool spikeDetected = SPIKE(cache[symbolIndex].bidPriceHistory, stdDevThreshold);
     ap_uint<4> levels[] = {0, 1, 2, 3, 4}; // 假设的档位

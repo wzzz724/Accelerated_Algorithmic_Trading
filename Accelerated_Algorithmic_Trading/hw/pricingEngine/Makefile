@@ -28,7 +28,9 @@ PE_TARGET=pricingengine
 PE_SRCS=$(KERNEL_DIR)/pricingengine.cpp \
         $(KERNEL_DIR)/pricingengine.hpp \
         $(KERNEL_DIR)/pricingengine_kernels.hpp \
-        $(KERNEL_DIR)/pricingengine_top.cpp
+        $(KERNEL_DIR)/pricingengine_top.cpp \
+		$(KERNEL_DIR)/pricingstrategy_custom.cpp \
+		$(KERNEL_DIR)/primitives.cpp
 
 # use platform info utility to query correct part for board target
 ifndef DEVICE

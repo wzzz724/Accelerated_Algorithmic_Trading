@@ -5,14 +5,15 @@
 
 BookSnapshot PricingEngine::getBookSnapshot(ap_uint<8> symbolIndex,
                                             ap_uint<8> depth) {
-#pragma HLS INLINE off
-#pragma HLS PIPELINE II=1
+#pragma HLS INLINE
+// #pragma HLS PIPELINE II=1
 
     pricingEngineCacheEntry_t &entry = cache[symbolIndex];
 
     BookSnapshot result;
 
-    ap_uint<8> actualDepth = (depth > LEVELS) ? LEVELS : depth;
+    ap_uint<8> actualDepth = depth;
+    if (depth > LEVELS) actualDepth = LEVELS;
 
     for (int i = 0; i < LEVELS; ++i) {
 #pragma HLS UNROLL
@@ -36,13 +37,14 @@ ap_int<32> PricingEngine::getOrderDelta(ap_uint<8> symbolIndex,
                                         ap_uint<3> level,
                                         bool isBidSide)
 {
-#pragma HLS INLINE off
-#pragma HLS PIPELINE II=1
+#pragma HLS INLINE
+// #pragma HLS PIPELINE II=1
 
     pricingEngineCacheEntry_t &entry = cache[symbolIndex];
     if (level >= LEVELS) return 0;
+    int _level = level;
 
-    return isBidSide ? entry.bidDelta[level] : entry.askDelta[level];
+    return isBidSide ? entry.bidSizeDelta[_level] : entry.askSizeDelta[_level];
 }
 
 ap_uint<56> PricingEngine::getTimeSinceLastUpdate(ap_uint<8> symbolIndex,
@@ -50,14 +52,15 @@ ap_uint<56> PricingEngine::getTimeSinceLastUpdate(ap_uint<8> symbolIndex,
                                                   bool isBidSide,
                                                   ap_uint<56> nowTimestamp)
 {
-#pragma HLS INLINE off
-#pragma HLS PIPELINE II=1
+#pragma HLS INLINE
+// #pragma HLS PIPELINE II=1
 
     if (level >= LEVELS) return 0;
+    int _level = level;
 
     pricingEngineCacheEntry_t &entry = cache[symbolIndex];
-    ap_uint<56> lastUpdate = isBidSide ? entry.lastUpdateTimestampBid[level]
-                                       : entry.lastUpdateTimestampAsk[level];
+    ap_uint<56> lastUpdate = isBidSide ? entry.lastUpdateTimestampBid[_level]
+                                       : entry.lastUpdateTimestampAsk[_level];
 
     return nowTimestamp - lastUpdate;  // 返回时间差（单位 = response.timestamp 单位）
 }
@@ -78,51 +81,51 @@ TimeSeriesBuffer& getBuffer(pricingEngineCacheEntry_t& entry, ap_uint<8> field, 
 }
 
 // 滑动平均
-ap_uint<32> PricingEngine::getMovingAvg(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0) {
-#pragma HLS INLINE off
+ap_uint<32> PricingEngine::getMovingAvg(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window, int level) {
+#pragma HLS INLINE
     return getBuffer(cache[symbolIndex], field, level).movingAvg(window);
 }
 
 // 指数加权平均
-ap_uint<32> PricingEngine::getExpAvg(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> alpha = 32, ap_uint<8> window = 8, int level = 0) {
-#pragma HLS INLINE off
+ap_uint<32> PricingEngine::getExpAvg(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> alpha, ap_uint<8> window, int level) {
+#pragma HLS INLINE
     return getBuffer(cache[symbolIndex], field, level).expAvg(alpha, window);
 }
 
 // 最大值
-ap_uint<32> PricingEngine::getMovingMax(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0) {
-#pragma HLS INLINE off
+ap_uint<32> PricingEngine::getMovingMax(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window, int level) {
+#pragma HLS INLINE
     return getBuffer(cache[symbolIndex], field, level).movingMax(window);
 }
 
 // 最小值
-ap_uint<32> PricingEngine::getMovingMin(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0) {
-#pragma HLS INLINE off
+ap_uint<32> PricingEngine::getMovingMin(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window, int level) {
+#pragma HLS INLINE
     return getBuffer(cache[symbolIndex], field, level).movingMin(window);
 }
 
 // 求和
-ap_uint<32> PricingEngine::getMovingSum(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0) {
-#pragma HLS INLINE off
+ap_uint<32> PricingEngine::getMovingSum(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window, int level) {
+#pragma HLS INLINE
     return getBuffer(cache[symbolIndex], field, level).movingSum(window);
 }
 
 // 时间导数
-ap_uint<32> PricingEngine::getDerivative(ap_uint<8> symbolIndex, ap_uint<8> field, int level = 0) {
-#pragma HLS INLINE off
+ap_uint<32> PricingEngine::getDerivative(ap_uint<8> symbolIndex, ap_uint<8> field, int level) {
+#pragma HLS INLINE
     return getBuffer(cache[symbolIndex], field, level).derivative();
 }
 
 ap_int<32> PricingEngine::getCrossover(const TimeSeriesBuffer& signal1, const TimeSeriesBuffer& signal2) {
 #pragma HLS INLINE
 
-    if (signal1.size < 2 || signal2.size < 2)
+    if (signal1.count < 2 || signal2.count < 2)
         return 0; // 数据不足
 
-    ap_uint<32> prev1 = signal1.get(signal1.size - 2);
-    ap_uint<32> curr1 = signal1.get(signal1.size - 1);
-    ap_uint<32> prev2 = signal2.get(signal2.size - 2);
-    ap_uint<32> curr2 = signal2.get(signal2.size - 1);
+    ap_uint<32> prev1 = signal1.getPrev(1);
+    ap_uint<32> curr1 = signal1.getLatest();
+    ap_uint<32> prev2 = signal2.getPrev(1);
+    ap_uint<32> curr2 = signal2.getLatest();
 
     if (prev1 <= prev2 && curr1 > curr2)
         return 1;   // 上穿
@@ -148,7 +151,7 @@ ap_fixed<16, 2> PricingEngine::getImbalance(ap_uint<32> bid_vol, ap_uint<32> ask
     return (ap_fixed<16, 2>)(diff / sum);
 }
 
-bool PricingEngine::priceJump(ap_uint<8> symbolIndex, ap_uint<32> threshold) {
+bool PricingEngine::PRICE_JUMP(ap_uint<8> symbolIndex, ap_uint<32> threshold) {
 #pragma HLS INLINE
 
     // 最近两个成交价
@@ -201,7 +204,7 @@ ap_int<32> PricingEngine::BOOK_PRESSURE(ap_uint<8> symbolIndex, const ap_uint<4>
 
     for (int i = 0; i < num_levels; ++i) {
 #pragma HLS UNROLL
-        ap_uint<4> level = levels[i];
+        int level = levels[i];
         if (level < LEVELS) {
             bid_sum += cache[symbolIndex].bidSize[level];
             ask_sum += cache[symbolIndex].askSize[level];
@@ -215,9 +218,9 @@ ap_int<32> PricingEngine::BOOK_PRESSURE(ap_uint<8> symbolIndex, const ap_uint<4>
 ap_uint<8> PricingEngine::STATEFUL_IF(ap_uint<8> symbolIndex, bool condition, ap_uint<8> state) {
 #pragma HLS INLINE
     if (condition) {
-        currentState = state;
+        cache[symbolIndex].systemState = state;
     }
-    return currentState;
+    return cache[symbolIndex].systemState;
 }
 
 ap_uint<32> PricingEngine::LATENCY_GATE(const TimeSeriesBuffer &tsBuf, ap_uint<8> delay) {

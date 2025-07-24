@@ -104,9 +104,9 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
         ap_uint<32> rawAsk = response.askPrice.range(31, 0);
 
         // 成交方向推断
-        if (entry.bidPrice != rawBid)
+        if (entry.bidPrice[0] != rawBid)
             entry.lastTradeSide = 1; // BUY
-        else if (entry.askPrice != rawAsk)
+        else if (entry.askPrice[0] != rawAsk)
             entry.lastTradeSide = 0; // SELL
 
         // 拆解 bid/ask 量（10档，每档16bit）
@@ -114,14 +114,14 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
 #pragma HLS UNROLL
             ap_uint<32> bidQty = response.bidQuantity.range((i + 1) * 32 - 1, i * 32);
             ap_uint<32> askQty = response.askQuantity.range((i + 1) * 32 - 1, i * 32);
-            entry.bidDelta[i] = (ap_int<32>)(bidQty) - (ap_int<32>)(entry.bidSize[i]);
-            entry.askDelta[i] = (ap_int<32>)(askQty) - (ap_int<32>)(entry.askSize[i]);
+            entry.bidSizeDelta[i] = (ap_int<32>)(bidQty) - (ap_int<32>)(entry.bidSize[i]);
+            entry.askSizeDelta[i] = (ap_int<32>)(askQty) - (ap_int<32>)(entry.askSize[i]);
 
             // 如果发生变化，更新时间戳
-            if (bidDelta != 0) {
+            if (entry.bidSizeDelta[i] != 0) {
                 entry.lastUpdateTimestampBid[i] = response.timestamp;
             }
-            if (askDelta != 0) {
+            if (entry.askSizeDelta[i] != 0) {
                 entry.lastUpdateTimestampAsk[i] = response.timestamp;
             }
             
@@ -202,7 +202,7 @@ void PricingEngine::pricingProcess(ap_uint<32> &regStrategyControl,
                 entry.positionSize -= operation.quantity;
 
             // 粗略 PnL = 仓位 × (成交价格 - 当前买价)
-            entry.pnlEstimate = entry.positionSize * (entry.tradePrice - entry.bidPrice);
+            entry.pnlEstimate = entry.positionSize * (entry.tradePrice - entry.bidPrice[0]);
 
             operationStream.write(operation);
         }
@@ -234,7 +234,7 @@ bool PricingEngine::pricingStrategyPeg(ap_uint<8> thresholdEnable,
     // TODO: restore valid check when test data updated to trigger top of book update
     //if(cache[symbolIndex].valid)
     {
-        if(cache[symbolIndex].bidPrice != response.bidPrice.range(31,0))
+        if(cache[symbolIndex].bidPrice[0] != response.bidPrice.range(31,0))
         {
             // create an order, current best bid +100
             operation.timestamp = response.timestamp;
@@ -248,8 +248,8 @@ bool PricingEngine::pricingStrategyPeg(ap_uint<8> thresholdEnable,
     }
 
     // cache top of book prices (used as trigger on next delta if change detected)
-    cache[symbolIndex].bidPrice = response.bidPrice.range(31,0);
-    cache[symbolIndex].askPrice = response.askPrice.range(31,0);
+    cache[symbolIndex].bidPrice[0] = response.bidPrice.range(31,0);
+    cache[symbolIndex].askPrice[0] = response.askPrice.range(31,0);
     cache[symbolIndex].valid = true;
 
     return executeOrder;
@@ -270,7 +270,7 @@ bool PricingEngine::pricingStrategyLimit(ap_uint<8> thresholdEnable,
     // TODO: restore valid check when test data updated to trigger top of book update
     //if(cache[symbolIndex].valid)
     {
-        if(cache[symbolIndex].bidPrice != response.bidPrice.range(31,0))
+        if(cache[symbolIndex].bidPrice[0] != response.bidPrice.range(31,0))
         {
             // create an order, current best bid +50
             operation.timestamp = response.timestamp;
@@ -284,8 +284,8 @@ bool PricingEngine::pricingStrategyLimit(ap_uint<8> thresholdEnable,
     }
 
     // cache top of book prices (used as trigger on next delta if change detected)
-    cache[symbolIndex].bidPrice = response.bidPrice.range(31,0);
-    cache[symbolIndex].askPrice = response.askPrice.range(31,0);
+    cache[symbolIndex].bidPrice[0] = response.bidPrice.range(31,0);
+    cache[symbolIndex].askPrice[0] = response.askPrice.range(31,0);
     cache[symbolIndex].valid = true;
 
     return executeOrder;

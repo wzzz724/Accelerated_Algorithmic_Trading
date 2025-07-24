@@ -28,6 +28,7 @@
 
 // 最多支持 5 档报价
 #define LEVELS 5
+#define MAX_WINDOW 8
 
 typedef struct pricingEngineRegControl_t
 {
@@ -84,57 +85,12 @@ typedef struct pricingEngineRegThresholds_t
     ap_uint<32> threshold7;
 } pricingEngineRegThresholds_t;
 
-typedef struct pricingEngineCacheEntry_t
-{
-    ap_uint<32> bidPrice[LEVELS];
-    ap_uint<32> askPrice[LEVELS];
-
-    ap_uint<32> tradePrice;
-    ap_uint<32> bidSize[LEVELS];
-    ap_uint<32> askSize[LEVELS];
-
-    ap_int<32>  bidSizeDelta[LEVELS];        // 增量（可正负）
-    ap_int<32>  askSizeDelta[LEVELS];
-
-    ap_uint<32> positionSize;
-    ap_uint<32> pnlEstimate;
-
-    TimeSeriesBuffer bidPriceHistory;  // 买价历史
-    TimeSeriesBuffer askPriceHistory;  // 卖价历史
-    TimeSeriesBuffer tradePriceHistory; // 成交价历史
-    TimeSeriesBuffer bidSizeHistory[LEVELS];   // 买量历史
-    TimeSeriesBuffer askSizeHistory[LEVELS];   // 卖量历史
-    TimeSeriesBuffer positionSizeHistory; // 仓位历史
-    TimeSeriesBuffer pnlEstimateHistory; // PnL 估算历史
-
-    ap_uint<1>  valid;
-    ap_uint<56> lastUpdateTimestampBid[LEVELS]; // 买档上次更新时间
-    ap_uint<56> lastUpdateTimestampAsk[LEVELS]; // 卖档上次更新时间
-    ap_uint<1>  lastTradeSide;      // 0: SELL, 1: BUY
-    ap_uint<32> tickIndex;
-    ap_uint<32> clockUS;
-    ap_uint<32> lastOrderId;
-    ap_uint<8>  systemState = STATE_IDLE;
-} pricingEngineCacheEntry_t;
-
-// For primitives
-typedef struct {
-    ap_uint<32> bidPrice;
-    ap_uint<32> bidSize;
-    ap_uint<32> askPrice;
-    ap_uint<32> askSize;
-} BookLevel;
-
-struct BookSnapshot {
-    BookLevel levels[LEVELS];
-};
-
-struct TimeSeriesEntry {
+typedef struct TimeSeriesEntry {
     ap_uint<32> value;
     ap_uint<56> timestamp;
-};
+} TimeSeriesEntry;
 
-struct TimeSeriesBuffer {
+typedef struct TimeSeriesBuffer {
     TimeSeriesEntry buffer[MAX_WINDOW];
     ap_uint<8> index = 0;
     ap_uint<8> count = 0;
@@ -154,7 +110,8 @@ struct TimeSeriesBuffer {
     ap_uint<32> getLatest() const {
 #pragma HLS INLINE
         if (count == 0) return 0;
-        ap_uint<8> lastIdx = (index == 0) ? (MAX_WINDOW - 1) : (index - 1);
+        ap_uint<8> lastIdx = MAX_WINDOW - 1;
+        if (index != 0) lastIdx = index - 1;
         return buffer[lastIdx].value;
     }
 
@@ -178,7 +135,9 @@ struct TimeSeriesBuffer {
                 sum += buffer[idx].value;
             }
         }
-        return (actual > 0) ? sum / actual : 0;
+        ap_uint<32> result = 0;
+        if (actual > 0) result = sum / actual;
+        return result;
     }
 
     // 滑动求和
@@ -260,18 +219,67 @@ struct TimeSeriesBuffer {
         ap_uint<32> dv = buffer[idx1].value - buffer[idx0].value;
         ap_uint<56> dt = buffer[idx1].timestamp - buffer[idx0].timestamp;
 
-        return (dt == 0) ? 0 : dv / dt;
+        ap_uint<32> result = 0;
+        if (dt != 0) result = dv / dt;
+        return result;
     }
-};
+} TimeSeriesBuffer;
 
-enum PEState : ap_uint<8> {
+enum PEState {
     STATE_IDLE = 0,
     STATE_ACTIVE = 1,
     STATE_ERROR = 2,
     // ...根据需要定义更多状态
 };
 
-enum VarField : ap_uint<8> {
+typedef struct pricingEngineCacheEntry_t
+{
+    ap_uint<32> bidPrice[LEVELS];
+    ap_uint<32> askPrice[LEVELS];
+
+    ap_uint<32> tradePrice;
+    ap_uint<32> bidSize[LEVELS];
+    ap_uint<32> askSize[LEVELS];
+
+    ap_int<32>  bidSizeDelta[LEVELS];        // 增量（可正负）
+    ap_int<32>  askSizeDelta[LEVELS];
+
+    ap_uint<32> positionSize;
+    ap_uint<32> pnlEstimate;
+
+    TimeSeriesBuffer bidPriceHistory;  // 买价历史
+    TimeSeriesBuffer askPriceHistory;  // 卖价历史
+    TimeSeriesBuffer tradePriceHistory; // 成交价历史
+    TimeSeriesBuffer bidSizeHistory[LEVELS];   // 买量历史
+    TimeSeriesBuffer askSizeHistory[LEVELS];   // 卖量历史
+    TimeSeriesBuffer positionSizeHistory; // 仓位历史
+    TimeSeriesBuffer pnlEstimateHistory; // PnL 估算历史
+
+    ap_uint<1>  valid;
+    ap_uint<56> lastUpdateTimestampBid[LEVELS]; // 买档上次更新时间
+    ap_uint<56> lastUpdateTimestampAsk[LEVELS]; // 卖档上次更新时间
+    ap_uint<1>  lastTradeSide;      // 0: SELL, 1: BUY
+    ap_uint<32> tickIndex;
+    ap_uint<32> clockUS;
+    ap_uint<32> lastOrderId;
+    ap_uint<8>  systemState = STATE_IDLE;
+} pricingEngineCacheEntry_t;
+
+// For primitives
+typedef struct BookLevel
+{
+    ap_uint<32> bidPrice;
+    ap_uint<32> bidSize;
+    ap_uint<32> askPrice;
+    ap_uint<32> askSize;
+} BookLevel;
+
+typedef struct BookSnapshot
+{
+    BookLevel levels[LEVELS];
+} BookSnapshot;
+
+enum VarField {
     BID_PRICE = 0,
     ASK_PRICE = 1,
     TRADE_PRICE = 2,
@@ -346,28 +354,28 @@ private:
                                        ap_uint<56> nowTimestamp);
 
     // 滑动平均
-    ap_uint<32> getMovingAvg(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+    ap_uint<32> getMovingAvg(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0);
 
     // 指数加权平均
-    ap_uint<32> getExpAvg(ap_uint<8> symbolIndex, const char* field, ap_uint<8> alpha = 32, ap_uint<8> window = 8, int level = 0);
+    ap_uint<32> getExpAvg(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> alpha = 32, ap_uint<8> window = 8, int level = 0);
 
     // 最大值
-    ap_uint<32> getMovingMax(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+    ap_uint<32> getMovingMax(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0);
 
     // 最小值
-    ap_uint<32> getMovingMin(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+    ap_uint<32> getMovingMin(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0);
 
     // 求和
-    ap_uint<32> getMovingSum(ap_uint<8> symbolIndex, const char* field, ap_uint<8> window = 8, int level = 0);
+    ap_uint<32> getMovingSum(ap_uint<8> symbolIndex, ap_uint<8> field, ap_uint<8> window = 8, int level = 0);
 
     // 时间导数
-    ap_uint<32> getDerivative(ap_uint<8> symbolIndex, const char* field, int level = 0);
+    ap_uint<32> getDerivative(ap_uint<8> symbolIndex, ap_uint<8> field, int level = 0);
 
     ap_int<32> getCrossover(const TimeSeriesBuffer& signal1, const TimeSeriesBuffer& signal2);
 
     ap_fixed<16, 2> getImbalance(ap_uint<32> bid_vol, ap_uint<32> ask_vol);
 
-    bool priceJump(ap_uint<8> symbolIndex, ap_uint<32> threshold);
+    bool PRICE_JUMP(ap_uint<8> symbolIndex, ap_uint<32> threshold);
 
     bool SPIKE(const TimeSeriesBuffer &tsBuf, ap_fixed<32, 8> std_dev_thresh);
 
